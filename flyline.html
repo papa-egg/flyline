@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>飞线</title>
+</head>
+<body>
+  <div class="box-wrap" style="width: 600px;height: 600px; border: 1px solid #333">
+    <svg id="J_box" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" style="background: #000"></svg>
+  </div>
+  <div style="margin-left: 15px">
+    连接点个数:<br>
+    <input id="J_number" type="text" type="number" class="number" value="20">
+    <button id="J_refresh" class="refresh">刷新</button>
+  </div>
+
+  <script>
+    {
+      /**
+       * 点坐标转线段坐标，全部连接，距离最短
+       * @param { Array } points
+       * @returns { Array }
+       *
+       */
+      function createFlyLine (points) {
+        const lineArr = [];
+        const links = {};
+        const gatherPts = [];
+
+        for (let [index, pt] of points.entries()) {
+          const link = [];
+          const pts = copy(points);
+          pts.splice(index, 1);
+
+          for (let rpt of pts) {
+            link.push({
+              spt: pt,
+              ept: rpt,
+              dis: getDistance(pt, rpt),
+            })
+          }
+
+          link.sort((a, b) => a.dis - b.dis);
+          links[pt.x + '|' + pt.y] = link;
+        }
+
+        infectPt(points[0]);
+
+        // 递归找寻集合的最近点
+        function infectPt (pt) {
+          const dArr = [];
+          const gArr = [];
+
+          gatherPts.push(pt.x + '|' + pt.y);
+
+          for (let item of gatherPts) {
+            gArr.push(links[item]);
+          }
+
+          for (let gather of gArr) {
+
+            for (let dt of gather) {
+              if (gatherPts.indexOf(dt.ept.x + '|' + dt.ept.y) < 0) {
+                dArr.push(dt);
+
+                break;
+              }
+            }
+          }
+
+          dArr.sort((a, b) => a.dis - b.dis);
+          const latelyLink = dArr[0];
+
+          if (latelyLink) {
+            lineArr.push({
+              spt: latelyLink.spt,
+              ept: latelyLink.ept,
+            });
+
+            infectPt(latelyLink.ept);
+          }
+        }
+
+        return lineArr;
+      }
+
+      // 获取两点之间直线距离
+      function getDistance (start, end) {
+        const dx = Math.abs(end.x - start.x);
+        const dy = Math.abs(end.y - start.y);
+
+        return Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2));
+      }
+
+      function copy (obj) {
+        return JSON.parse(JSON.stringify(obj));
+      }
+
+      window.createFlyLine = createFlyLine;
+    }
+  </script>
+
+  <script>
+    {
+      /**
+       * 飞线功能
+       * @param { Number } num 连接点个数
+       * @returns
+       *
+       */
+      function FlyLine (num = 20) {
+        this.num = num;
+        this.r = 8;
+
+        this.$box = document.getElementById('J_box');
+        this.width = this.$box.clientWidth;
+        this.height = this.$box.clientHeight;
+      }
+
+      // 刷新
+      FlyLine.prototype.refresh = function () {
+        this.clearView();
+        this.createView();
+      }
+
+      // 清空图形
+      FlyLine.prototype.clearView = function () {
+        this.$box.innerHTML = '';
+      }
+
+      // 创建图形场景
+      FlyLine.prototype.createView = function () {
+        const points = this.createPoints(this.num);
+        const lineArr = window.createFlyLine(points);
+
+        this.renderPoints(points);
+        this.renderFlyLines(lineArr);
+      }
+
+      // 创建随机坐标点
+      FlyLine.prototype.createPoints = function (total) {
+        const nums = [];
+
+        for (let i = 0; i < total; i++) {
+          nums.push({
+            x: this.createRandomNum(0 + this.r, this.width - this.r),
+            y: this.createRandomNum(0 + this.r, this.height - this.r),
+          })
+        }
+
+        return nums;
+      }
+
+      FlyLine.prototype.createRandomNum = function (min, max) {
+        return Math.floor(Math.random() * (max - min)) + min;
+      }
+
+      // 渲染点
+      FlyLine.prototype.renderPoints = function (points) {
+        for (let { x, y } of points) {
+          const elem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          elem.setAttribute('stroke-width', 0);
+          elem.setAttribute('fill', 'red');
+          elem.setAttribute('cx', x);
+          elem.setAttribute('cy', y);
+          elem.setAttribute('r', this.r);
+
+          this.$box.appendChild(elem);
+        }
+      }
+
+      // 渲染多条线段
+      FlyLine.prototype.renderFlyLines = function (lineArr) {
+        for (let { spt, ept } of lineArr) {
+          this.renderLine(spt, ept);
+        }
+      }
+
+      FlyLine.prototype.renderLine = function (pt1, pt2) {
+        const elem = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        elem.setAttribute('points', `${ pt1.x } ${ pt1.y } ${ pt2.x } ${ pt2.y }`);
+        elem.setAttribute('stroke', 'blue');
+        elem.setAttribute('stroke-width', '1');
+        elem.setAttribute('fill', 'blue');
+
+        this.$box.appendChild(elem);
+      }
+
+      window.FlyLine = FlyLine;
+    }
+  </script>
+  <script>
+    const flyline = new FlyLine(20);
+
+    flyline.refresh();
+
+    // 输入事件
+    document.getElementById('J_number').oninput  = function (event) {
+      const num = Number(event.target.value);
+
+      if (num) {
+        flyline.num = num;
+      }
+    }
+
+    // 刷新事件
+    document.getElementById('J_refresh').onclick = function () {
+      flyline.refresh();
+    }
+  </script>
+
+  <style>
+    * { margin: 0; padding: 0;}
+    .number{
+      display: inline-block;
+      height: 33px;
+    }
+    .refresh{
+      border: none;
+      display: inline-block;
+      outline: 0;
+      padding: 8px 18px;
+      margin-left: 20px;
+      margin-top: 12px;
+      margin-bottom: 10px;
+      vertical-align: middle;
+      overflow: hidden;
+      text-decoration: none;
+      color: #fff;
+      background-color: #e9686b;
+      text-align: center;
+      transition: .2s ease-out;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0px 2px 6px rgb(0 0 0 / 12%), 0px 1px 2px rgb(0 0 0 / 24%);
+      font-family: '微软雅黑';
+      border-radius: 2px;
+    }
+  </style>
+</body>
+</html>
